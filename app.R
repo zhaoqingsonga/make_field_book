@@ -1,0 +1,102 @@
+# =============================================================================
+# 田间记录本生成器 - Shiny App
+# 基于soyplant库的田间试验规划工具
+# 支持三种记录本类型：群体、株行、产比
+# 流程：上传 -> 维护 -> 生成记录本
+# =============================================================================
+
+library(shiny)
+library(bslib)
+library(shinyjs)
+library(DT)
+library(dplyr)
+library(openxlsx)
+library(soyplant)
+
+# 加载辅助函数
+source("shared/helpers.R")
+source("shared/db_persistence.R")
+
+# 加载模块
+source("shared/mod_line_selection.R")
+source("shared/mod_population.R")
+source("shared/mod_yield_test.R")
+
+# Bootstrap 5 主题（主色、圆角、字体与自定义样式中的 var(--bs-*) 对齐）
+fb_theme <- bs_theme(
+  version = 5,
+  primary = "#667eea",
+  `font-family-sans-serif` = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif",
+  `font-family-base` = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif",
+  `border-radius` = "0.5rem",
+  `enable-rounded` = "true"
+)
+
+# === UI 定义 ===
+
+ui <- navbarPage(
+  title = "田间记录本生成器",
+  id = "main_nav",
+  theme = fb_theme,
+
+  header = tags$head(
+    includeCSS("www/styles.css")
+  ),
+
+  # === 1. 群体记录本 ===
+  tabPanel("群体记录本",
+    icon = icon("dna"),
+    population_ui("pop_mod")
+  ),
+
+  # === 2. 株行记录本 ===
+  tabPanel("株行记录本",
+    icon = icon("leaf"),
+    line_selection_ui("line_mod")
+  ),
+
+  # === 3. 产比记录本 ===
+  tabPanel("产比记录本",
+    icon = icon("chart-bar"),
+    yield_test_ui("yield_mod")
+  ),
+
+  # === 关于 ===
+  tabPanel("关于",
+    icon = icon("info-circle"),
+    fluidPage(
+      style = "max-width: 800px; margin: auto; padding: 20px;",
+      h3("田间记录本生成器 v2.0"),
+      p("基于soyplant库的田间试验规划工具，支持群体、株行、产比三种记录本生成。"),
+      hr(),
+      h4("工作流程"),
+      tags$ul(
+        tags$li("上传：上传Excel格式的材料清单"),
+        tags$li("维护：查看、筛选、删除已上传的试验记录"),
+        tags$li("生成：生成记录本（仅限未生成过的记录）")
+      ),
+      hr(),
+      h4("数据库说明"),
+      p("所有试验记录保存在 data/field_book.sqlite 数据库中，包括："),
+      tags$ul(
+        tags$li("群体记录表 (population_records)"),
+        tags$li("株行记录表 (line_selection_records)"),
+        tags$li("产比记录表 (yield_test_records)")
+      ),
+      hr(),
+      p("依赖包: shiny, DT, dplyr, openxlsx, soyplant, DBI, RSQLite"),
+      p("开发者: zhaoqingsonga/soyplant")
+    )
+  )
+)
+
+# === Server 定义 ===
+
+server <- function(input, output, session) {
+  population_server("pop_mod")
+  line_selection_server("line_mod")
+  yield_test_server("yield_mod")
+}
+
+# === 启动应用 ===
+shinyApp(ui = ui, server = server)

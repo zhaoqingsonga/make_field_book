@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"field\\\\s*<-\" \"E:/FangCloudSync/R_WD360/Project/soyplant/R/\"*)",
+      "Bash(ls -la \"E:/FangCloudSync/R_WD360/Project/soyplant/R/\"*.R)",
+      "Bash(Rscript -e \"library\\(readxl\\); df <- readxl::read_excel\\('inst/extdata/temp_field.xlsx'\\); str\\(df\\); cat\\('\\\\nNames:', names\\(df\\), '\\\\n'\\); cat\\('\\\\nhead:\\\\n'\\); print\\(head\\(df\\)\\)\")",
+      "Bash(Rscript -e \"library\\(soyplant\\); exists\\('field'\\); if\\(exists\\('field'\\)\\) { cat\\('field found, class:', class\\(field\\), '\\\\n'\\); cat\\('dim:', nrow\\(field\\), 'x', ncol\\(field\\), '\\\\n'\\) } else { cat\\('field NOT found\\\\n'\\) }\")",
+      "Bash(Rscript -e ':*)",
+      "Bash(Rscript -e \"shiny::runApp\\('.', host = '0.0.0.0', port = 3838, launch.browser = FALSE\\)\")",
+      "Bash(Rscript -e \"shiny::runApp\\('.', host = '0.0.0.0', port = 5555, launch.browser = FALSE\\)\")",
+      "Bash(Rscript -e \"shiny::runApp\\('.', host = '0.0.0.0', port = 7777, launch.browser = FALSE\\)\")",
+      "Bash(Rscript -e \"shiny::runApp\\('.', host = '0.0.0.0', port = 8888, launch.browser = FALSE\\)\")",
+      "Bash(taskkill /F /IM Rscript.exe)",
+      "Bash(Rscript -e \"shiny::runApp\\('.', host = '0.0.0.0', port = 9999, launch.browser = FALSE\\)\")"
+    ]
+  }
+}
