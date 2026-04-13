@@ -92,7 +92,7 @@ yield_test_ui <- function(id) {
       ),
 
       # === 3. 生成产比记录本 ===
-      tabPanel("生成记录本",
+      tabPanel("生成记录",
         value = "generate",
         icon = icon("cog"),
 

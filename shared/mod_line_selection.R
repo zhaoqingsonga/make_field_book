@@ -93,7 +93,7 @@ line_selection_ui <- function(id) {
       ),
 
       # === 3. 生成株行记录本 ===
-      tabPanel("生成记录本",
+      tabPanel("生成记录",
         value = "generate",
         icon = icon("cog"),
 
