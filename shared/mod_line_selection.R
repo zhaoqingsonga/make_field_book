@@ -561,7 +561,8 @@ line_selection_server <- function(id) {
           showNotification("没有已生成的记录", type = "warning")
           return(NULL)
         }
-        openxlsx::write.xlsx(all_data, file, overwrite = TRUE)
+        combined_data <- dplyr::bind_rows(all_data)
+        openxlsx::write.xlsx(combined_data, file, overwrite = TRUE)
       }
     )
 
