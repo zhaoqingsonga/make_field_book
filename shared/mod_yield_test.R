@@ -106,30 +106,41 @@ yield_test_ui <- function(id) {
           fluidRow(
             column(4,
               div(class = "sidebar-panel",
+                # === 试验选择（不折叠）===
                 h5(icon("database"), " 选择试验"),
                 selectInput(ns("select_exp"), "", choices = NULL, width = "100%"),
 
-                h5(icon("sliders-h"), " planting参数"),
-                textInput(ns("location"), "试验地点", value = "安徽宿州", width = "100%"),
-                p("多个地点用空格分隔", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                textInput(ns("ck"), "对照品种", value = "", width = "100%"),
-                p("填写后会在最后自动添加一行对照", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                numericInput(ns("interval"), "对照间隔数", value = 19, min = 1, width = "100%"),
-                p("每隔N行插入一行对照", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                numericInput(ns("rp"), "重复数", value = 2, min = 1, width = "100%"),
-                p("1重复=顺序；2-3重复=随机", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                numericInput(ns("digits"), "编号位数", value = 3, min = 1, width = "100%"),
-                p("材料编号的数字位数", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                numericInput(ns("rows"), "材料种植行数", value = 4, min = 1, width = "100%"),
-                p("每个品种的种植行数", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                textInput(ns("prefix"), "材料前缀", value = "N25E", width = "100%"),
-                p("材料编号的前缀", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                checkboxInput(ns("ckfixed"), "对照固定", value = TRUE),
-                p("固定则按间隔插入；不固定则随机插入", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                numericInput(ns("startN"), "起始编号", value = 1, min = 1, width = "100%"),
-                p("fieldid起始编号", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
-                textInput(ns("promote"), "晋级（筛选字段：next_stage）", value = "初级产比", width = "100%"),
-                textInput(ns("target_stage"), "晋级后阶段（target_stage）", value = "高级产比", width = "100%"),
+                # === 折叠面板：种植参数 ===
+                accordion(
+                  accordion_panel(
+                    "种植参数",
+                    textInput(ns("location"), "试验地点", value = "安徽宿州", width = "100%"),
+                    p("多个地点用空格分隔", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    textInput(ns("ck"), "对照品种", value = "", width = "100%"),
+                    p("填写后会在最后自动添加一行对照", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    numericInput(ns("interval"), "对照间隔数", value = 19, min = 1, width = "100%"),
+                    p("每隔N行插入一行对照", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    numericInput(ns("rp"), "重复数", value = 2, min = 1, width = "100%"),
+                    p("1重复=顺序；2-3重复=随机", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    numericInput(ns("digits"), "编号位数", value = 3, min = 1, width = "100%"),
+                    p("材料编号的数字位数", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    numericInput(ns("rows"), "材料种植行数", value = 4, min = 1, width = "100%"),
+                    p("每个品种的种植行数", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    textInput(ns("prefix"), "材料前缀", value = "N25E", width = "100%"),
+                    p("材料编号的前缀", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    checkboxInput(ns("ckfixed"), "对照固定", value = TRUE),
+                    p("固定则按间隔插入；不固定则随机插入", class = "text-muted", style = "font-size: 12px; margin-top: -3px;"),
+                    numericInput(ns("startN"), "起始编号", value = 1, min = 1, width = "100%"),
+                    p("fieldid起始编号", class = "text-muted", style = "font-size: 12px; margin-top: -3px;")
+                  ),
+                  # === 折叠面板：晋级参数 ===
+                  accordion_panel(
+                    "晋级参数",
+                    textInput(ns("promote"), "晋级（筛选字段：next_stage）", value = "初级产比", width = "100%"),
+                    textInput(ns("target_stage"), "晋级后阶段（target_stage）", value = "高级产比", width = "100%")
+                  ),
+                  open = FALSE  # 默认折叠
+                ),
 
                 div(class = "status-box", id = ns("gen_status"),
                   icon("arrow-left"), " 请选择试验记录..."
