@@ -165,7 +165,10 @@ line_selection_ui <- function(id) {
                 ),
                 div(class = "button-group",
                   actionButton(ns("btn_generate"), "生成记录本", icon = icon("cog"), class = "btn-primary"),
-                  downloadButton(ns("btn_download"), "下载记录本", icon = icon("download"), class = "btn-success")
+                  tags$div(
+                    style = "display: none;",
+                    downloadButton(ns("btn_download"), "下载记录本", icon = icon("download"), class = "btn-success")
+                  )
                 ),
                 div(class = "result-box", id = ns("gen_result"),
                   "生成结果将显示在这里..."
@@ -881,9 +884,15 @@ line_selection_server <- function(id) {
           "原始:", nrow(origin), "行<br>",
           "材料:", nrow(mydata), "行<br>",
           "种植:", nrow(planted), "行<br>",
-          "请点击下方\"下载记录本\"按钮下载"
+          "正在准备下载记录本"
         ))
         showNotification("株行记录本生成成功!", type = "message")
+        session$sendCustomMessage("auto_download_when_ready", list(
+          id = ns("btn_download"),
+          failInputId = ns("download_ready_timeout"),
+          maxAttempts = 40,
+          intervalMs = 250
+        ))
 
       }, error = function(e) {
         print("========================================")
@@ -935,5 +944,10 @@ line_selection_server <- function(id) {
         )
       }
     )
+    outputOptions(output, "btn_download", suspendWhenHidden = FALSE)
+
+    observeEvent(input$download_ready_timeout, {
+      showNotification("记录本已生成，但自动下载未触发，请刷新页面后重试。", type = "warning", duration = 8)
+    })
   })
 }

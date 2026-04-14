@@ -40,7 +40,42 @@ ui <- navbarPage(
   theme = fb_theme,
 
   header = tags$head(
-    includeCSS("www/styles.css")
+    includeCSS("www/styles.css"),
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('auto_download_when_ready', function(message) {
+        if (!message || !message.id) {
+          return;
+        }
+
+        var attempts = 0;
+        var maxAttempts = message.maxAttempts || 40;
+        var intervalMs = message.intervalMs || 250;
+
+        var timer = window.setInterval(function() {
+          var el = document.getElementById(message.id);
+          if (!el) {
+            attempts += 1;
+          } else {
+            var href = el.getAttribute('href') || '';
+            var disabled = el.classList.contains('disabled') || el.getAttribute('aria-disabled') === 'true';
+
+            if (href && !disabled) {
+              window.clearInterval(timer);
+              el.click();
+              return;
+            }
+            attempts += 1;
+          }
+
+          if (attempts >= maxAttempts) {
+            window.clearInterval(timer);
+            if (window.Shiny && message.failInputId) {
+              window.Shiny.setInputValue(message.failInputId, Date.now(), { priority: 'event' });
+            }
+          }
+        }, intervalMs);
+      });
+    "))
   ),
 
   # === 1. 群体记录本 ===
