@@ -139,7 +139,7 @@ population_ui <- function(id) {
                   # === 折叠面板：世代筛选 ===
                   accordion_panel(
                     "世代筛选",
-                    numericInput(ns("min_f"), "最小世代", value = 1, min = 1, max = 7, width = "100%"),
+                    numericInput(ns("min_f"), "最小世代", value = 0, min = 0, max = 7, width = "100%"),
                     numericInput(ns("max_f"), "最大世代", value = 6, min = 1, max = 7, width = "100%")
                   ),
                   open = FALSE  # 默认折叠
@@ -631,7 +631,7 @@ population_server <- function(id) {
       updateTextInput(session, "location", value = "安徽宿州")
       updateCheckboxInput(session, "ckfixed", value = TRUE)
       updateNumericInput(session, "startN", value = 1)
-      updateNumericInput(session, "min_f", value = 1)
+      updateNumericInput(session, "min_f", value = 0)
       updateNumericInput(session, "max_f", value = 6)
     })
 
@@ -778,6 +778,15 @@ population_server <- function(id) {
           }
         }
 
+        # 若筛选后无可用材料，提前终止并给出可读提示
+        if (nrow(mydata) == 0) {
+          stop("筛选后无可生成材料：请检查世代范围(min_f/max_f)与new_rows是否大于0")
+        }
+
+        # 预先建立原始材料名 -> new_rows 映射
+        # get_population() 后 source 通常对应筛选前的 name，用于恢复实际种植行数
+        pre_name_to_rows <- setNames(.new_rows_vec, as.character(mydata$name))
+
         # 添加seeds列（如果不存在）
         if (!"seeds" %in% names(mydata)) {
           mydata$seeds <- 0
@@ -825,21 +834,25 @@ population_server <- function(id) {
         print(str(mydata))
         print(head(mydata))
 
-        # 通过位置匹配恢复实际的new_rows值
-        # get_population() 用 subset() 保持顺序，所以过滤后的第N行对应.new_rows_vec的第N个元素
-        if (exists(".new_rows_vec") && length(.new_rows_vec) == nrow(mydata)) {
-          mydata$.actual_rows <- .new_rows_vec
-        } else if (exists(".new_rows_vec")) {
-          # 长度不匹配，用默认值
-          mydata$.actual_rows <- rep(1, nrow(mydata))
-        } else {
-          mydata$.actual_rows <- 1
+        # 按 source 恢复实际 new_rows（不依赖 get_population() 前后行数一致）
+        source_key <- as.character(mydata$source)
+        mydata$.actual_rows <- as.numeric(pre_name_to_rows[source_key])
+        # 若 source 匹配不到，兜底用 name 再尝试一次
+        missing_rows_idx <- is.na(mydata$.actual_rows)
+        if (any(missing_rows_idx)) {
+          mydata$.actual_rows[missing_rows_idx] <- as.numeric(pre_name_to_rows[as.character(mydata$name[missing_rows_idx])])
         }
         mydata$.actual_rows[is.na(mydata$.actual_rows) | mydata$.actual_rows <= 0] <- 1
 
-        # 创建 source -> new_rows 的映射，用于 planting() 后赋值
-        # 注意：get_population() 后 source = 原始 name
-        source_to_rows <- setNames(mydata$.actual_rows, mydata$source)
+        # 创建材料行数映射（优先 source，其次 name，再其次 code）
+        # 某些数据在 planting() 后 source 可能为空或类型不稳定，需多键兜底
+        source_to_rows <- setNames(mydata$.actual_rows, as.character(mydata$source))
+        name_to_rows <- setNames(mydata$.actual_rows, as.character(mydata$name))
+        code_to_rows <- if ("code" %in% names(mydata)) {
+          setNames(mydata$.actual_rows, as.character(mydata$code))
+        } else {
+          numeric(0)
+        }
 
         shinyjs::html(ns("gen_status"), paste("get_population完成，返回", nrow(mydata), "行"))
 
@@ -895,7 +908,9 @@ population_server <- function(id) {
           is_ck_vec <- if ("is_ck" %in% names(planted_loc)) planted_loc$is_ck else integer(nrow(planted_loc))
           if (!is.numeric(is_ck_vec)) is_ck_vec <- as.integer(is_ck_vec)
           is_ck_vec[is.na(is_ck_vec)] <- 0L
-          source_vec <- planted_loc$source
+          source_vec <- if ("source" %in% names(planted_loc)) as.character(planted_loc$source) else rep(NA_character_, nrow(planted_loc))
+          name_vec <- if ("name" %in% names(planted_loc)) as.character(planted_loc$name) else rep(NA_character_, nrow(planted_loc))
+          code_vec <- if ("code" %in% names(planted_loc)) as.character(planted_loc$code) else rep(NA_character_, nrow(planted_loc))
 
           pos <- 1
           for (idx in seq_len(nrow(planted_loc))) {
@@ -907,8 +922,24 @@ population_server <- function(id) {
               # 对照行：用 ck_rows_val
               actual_rows_i <- ck_rows_val
             } else {
-              # 材料行：用 source_to_rows 查找 new_rows
-              actual_rows_i <- source_to_rows[[src]]
+              # 材料行：按 source -> name -> code 的优先级查找 new_rows
+              actual_rows_i <- NA_real_
+              src_chr <- if (!is.na(src) && nzchar(src)) as.character(src) else NA_character_
+              if (!is.na(src_chr) && src_chr %in% names(source_to_rows)) {
+                actual_rows_i <- as.numeric(source_to_rows[[src_chr]])
+              }
+              if (is.na(actual_rows_i)) {
+                nm_chr <- name_vec[idx]
+                if (!is.na(nm_chr) && nzchar(nm_chr) && nm_chr %in% names(name_to_rows)) {
+                  actual_rows_i <- as.numeric(name_to_rows[[nm_chr]])
+                }
+              }
+              if (is.na(actual_rows_i)) {
+                cd_chr <- code_vec[idx]
+                if (!is.na(cd_chr) && nzchar(cd_chr) && cd_chr %in% names(code_to_rows)) {
+                  actual_rows_i <- as.numeric(code_to_rows[[cd_chr]])
+                }
+              }
               if (is.na(actual_rows_i)) actual_rows_i <- 1
             }
             planted_loc$rows[idx] <- actual_rows_i
@@ -998,6 +1029,12 @@ population_server <- function(id) {
             "父本(pa)列数据为空，请检查Excel文件中的父本列"
           } else if (grepl("get_population返回无效数据", err_msg)) {
             "数据处理失败，请检查数据格式是否正确"
+          } else if (grepl("筛选后无可生成材料", err_msg)) {
+            paste0(
+              "筛选后没有可生成的材料，请检查：\n",
+              "1. 世代范围设置（最小世代/最大世代）是否覆盖该试验数据\n",
+              "2. 该试验的new_rows是否都为0或空值"
+            )
           } else {
             # 通用错误
             paste0("生成失败：", err_msg)
