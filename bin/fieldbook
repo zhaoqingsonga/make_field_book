@@ -1,0 +1,91 @@
+#!/usr/bin/env Rscript
+# =============================================================================
+# File: bin/fieldbook
+# Role: CLI entrypoint - sources CLI infrastructure, runs cli_main(argv)
+# Usage: fieldbook <group> <command> [options]
+# =============================================================================
+
+FIELDBOOK_CLI_VERSION <- "0.1.0"
+
+# Locate project root by walking upward until data/ + shared/ are found
+cli_project_root <- function() {
+  fa <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+  if (length(fa)) return(dirname(dirname(normalizePath(sub("^--file=", "", fa[1])))))
+  wd <- normalizePath(getwd(), winslash = "/", mustWork = FALSE)
+  d <- wd
+  for (i in 1:5) {
+    if (dir.exists(file.path(d, "data")) &&
+        dir.exists(file.path(d, "shared"))) return(d)
+    parent <- dirname(d)
+    if (identical(parent, d)) break
+    d <- parent
+  }
+  wd
+}
+
+root <- cli_project_root()
+if (!dir.exists(file.path(root, "R", "cli")) ||
+    !dir.exists(file.path(root, "shared"))) {
+  cat("ERROR 未能定位项目根目录 (R/cli 与 shared 均需存在):", root, "\n",
+      file = stderr())
+  quit(save = "no", status = 1L, runLast = FALSE)
+}
+
+old_wd <- setwd(root)
+on.exit(setwd(old_wd), add = TRUE)
+
+suppressPackageStartupMessages({
+  library(DBI)
+  library(RSQLite)
+  library(openxlsx)
+  library(dplyr)
+  if (requireNamespace("jsonlite", quietly = TRUE)) library(jsonlite)
+})
+
+# Required for generation pipeline (planting, get_population, get_plant, ...)
+if (!requireNamespace("soyplant", quietly = TRUE)) {
+  cat("ERROR 缺少依赖包 'soyplant'。请执行 devtools::install_github(\"zhaoqingsonga/soyplant\")\n",
+      file = stderr())
+  quit(save = "no", status = 1L, runLast = FALSE)
+}
+suppressPackageStartupMessages(library(soyplant))
+
+cli_env <- new.env(parent = globalenv())
+
+quiet_source <- function(path) {
+  if (!file.exists(path)) return(invisible(FALSE))
+  suppressWarnings(suppressMessages(source(path, local = cli_env, echo = FALSE)))
+  invisible(TRUE)
+}
+
+# Existing shared modules (depend on db_persistence.R for DB functions)
+quiet_source(file.path(root, "shared", "helpers.R"))
+quiet_source(file.path(root, "shared", "db_persistence.R"))
+
+# CLI infrastructure
+for (f in c("cli_core.R", "cli_config.R", "dispatch.R",
+            "cli_db.R", "cli_generate.R")) {
+  p <- file.path(root, "R", "cli", f)
+  if (!file.exists(p)) {
+    cat("ERROR 缺少 CLI 文件：", p, "\n", file = stderr())
+    quit(save = "no", status = 1L, runLast = FALSE)
+  }
+  source(p, local = cli_env)
+}
+
+# ---- Run -------------------------------------------------------------------
+argv <- commandArgs(trailingOnly = TRUE)
+status <- 0L
+tryCatch(
+  cli_env$cli_main(argv),
+  error = function(e) {
+    msg <- conditionMessage(e)
+    if (grepl("^ERROR", msg)) cat(msg, "\n", file = stderr())
+    else {
+      cat("运行出错：", msg, "\n", file = stderr())
+      if (nzchar(Sys.getenv("FIELDBOOK_DEBUG"))) print(cli_env$cli_ctx)
+    }
+    status <<- 1L
+  }
+)
+quit(save = "no", status = status, runLast = FALSE)

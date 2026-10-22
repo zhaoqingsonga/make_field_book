@@ -8,6 +8,9 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# CLI launcher: ensure +x after cross-machine checkout restores modes
+chmod +x bin/fieldbook 2>/dev/null || true
+
 # 端口
 PORT=3636
 

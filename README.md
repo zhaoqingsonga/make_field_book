@@ -70,6 +70,19 @@ setwd("shiny_version/yield_test")
 shiny::runApp()
 ```
 
+### 命令行版本（CLI）
+
+除 Shiny UI 外，还有一个等价的 CLI（与 Shiny 共用同一 SQLite 数据库）：
+
+```sh
+./bin/fieldbook                                           # 列出全部命令
+./bin/fieldbook db info                                   # 查看数据库
+./bin/fieldbook generate population data/pop.xlsx \
+    --ck="中黄301" --out=out/pop.xlsx                     # 生成群体记录本
+```
+
+完整说明见 [docs/README_cli.md](docs/README_cli.md)。
+
 ## 输入数据格式
 
 ### 株行记录本
