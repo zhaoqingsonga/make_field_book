@@ -1,2 +1,3 @@
 data/*.sqlite
 data/*.sqlite3
+.pm2-runtime/

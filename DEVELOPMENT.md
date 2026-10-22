@@ -327,3 +327,78 @@ if (!is.null(origin_for_trait) && "source" %in% names(planted_loc)) {
 install.packages(c("shiny", "shinyjs", "dplyr", "openxlsx", "DT", "DBI", "RSQLite", "jsonlite"))
 devtools::install_github("zhaoqingsonga/soyplant")
 ```
+
+---
+
+## macOS / PM2 踩坑（经验教训，2026-10-22 整理）
+
+### 症状
+
+在 macOS 上跑 PM2 会反复遇到：
+
+1. `pm2 start ecosystem.config.js` 看似成功（daemon 进程创建、`App launched` 打印），但紧接的 `pm2 list` / `pm2 ping` / `pm2 save` 立刻报：
+   ```
+   connect EPERM /Users/m4/.pm2/rpc.sock
+   Error: EPERM: operation not permitted, open '/Users/m4/.pm2/pm2.log'
+   ```
+2. daemon 进程存在但僵死：不响应 RPC，新调用阻塞到挂死
+3. 已经 fork 出去的子进程（如 R Shiny on 3636）能继续处理旧 TCP 连接，但 PM2 客户端全部失效
+
+### 根因
+
+macOS Sonoma+ 会自动给 **未签名 node 进程新建的文件** 打上 `com.apple.provenance` xattr。被标记后，**后续同二进制再次写入** 即返回 EPERM。复现：
+
+```sh
+$ xattr /Users/m4/.pm2/pm2.log
+com.apple.provenance
+
+$ node -e 'require("fs").appendFileSync("/Users/m4/.pm2/pm2.log", "x")'
+Error: EPERM: operation not permitted, open '/Users/m4/.pm2/pm2.log'
+```
+
+触发条件 **对路径不敏感**——`~/.pm2/` 还是项目内的 `./.pm2-runtime/` 都一样被打标。nvm 装的 node（`/Users/m4/.nvm/versions/node/.../bin/node`）属于"未签名"类别。
+
+影响面：
+
+- `pm2 start ecosystem.config.js`（首次）：daemon 内部日志阻塞，看似在线
+- `pm2 list` / `pm2 save` 等后续 client 调用：EPERM，挂死
+- `pm2 startup` 提示的 `sudo env ... pm2 startup launchd -u m4 --hp /Users/m4`：写 `/Library/LaunchDaemons/`，需要 sudo 密码
+- 修改/删除 `~/Library/LaunchAgents/pm2.m4.plist`：macOS 锁该路径，`Operation not permitted` 拒所有变更
+- 在沙箱 / 受限 shell 中 `kill` 跨进程的 PM2 子进程：沙箱禁跨进程信号
+
+### 推荐方案（按可靠性递减）
+
+1. **不用 PM2**，用 `./run.sh` 直接拉起 Shiny。开发机足够，端口冲突时改 `run.sh` 里 `PORT=3636` 即可。
+2. **换成 homebrew 装的 node + pm2**：`brew install node` 然后 `npm i -g pm2`。homebrew 安装的二进制有合法 `codesign`，可能规避 provenance xattr。代价：放弃 nvm 那一套环境。
+3. **手动 `pm2 resurrect`**：开机后在 shell 里跑一次。可以在 `~/.zshrc` 加一行 alias：
+   ```sh
+   alias pm2live='pm2 resurrect 2>/dev/null || pm2 start /Users/m4/GitHub/make_field_book/ecosystem.config.js'
+   ```
+4. **完全放弃开机自启**：本项目只有一个进程，宕机时手敲 `bash run.sh` 也只多 5 秒。
+
+### 死透后的清理步骤
+
+如果遇到 daemon 僵死：
+
+```sh
+# 1. 找 zombie 子进程（如 Shiny R）
+lsof -iTCP:3636 -sTCP:LISTEN
+
+# 2. 强制结束（拿不到 sudo 时换无沙箱的 shell）
+sudo kill -9 <pid>
+
+# 3. 删 dangling Unix socket
+rm -f /Users/m4/.pm2/{rpc,pub}.sock
+
+# 4. 重新拉起
+pm2 start ecosystem.config.js
+pm2 save
+```
+
+注意：第 3 步只解 socket 阻塞，xattr 后续仍会触发。要彻底解决按"推荐方案"做。
+
+### 已落地的好习惯
+
+- `bin/fieldbook` 的 `+x` 位由 `run.sh` 启动时 `chmod` 防御（提交 `bf52e07`）
+- `ecosystem.config.js` 的 `cwd` 修正为真实项目路径（提交 `dc699ef`）
+- CLI 与 Shiny 共用 `data/field_book.sqlite`，CLI 自带 `--json` 模式——批处理场景不必依赖 PM2
